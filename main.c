@@ -12,6 +12,7 @@ inline lapack_complex_double * create_matrix(void) {
     return (lapack_complex_double *)calloc(3 * 3, sizeof(lapack_complex_double));
 }
 
+
 void fill_matrix(lapack_complex_double *matrix) {
     int i, j;
 
@@ -19,6 +20,19 @@ void fill_matrix(lapack_complex_double *matrix) {
         for (j = 0; j < 3; ++j) {
             matrix[$(i, j)] = lapack_make_complex_double(ranf(), ranf());
         }
+    }
+}
+
+
+inline void print_matrix(lapack_complex_double *matrix) {
+    int i, j;
+
+    for (i = 0; i < 3; ++i) {
+        for (j = 0; j < 3; ++j) {
+            printf("%g + %g * I ", lapack_complex_double_real(matrix[$(i,j)]),
+                                   lapack_complex_double_imag(matrix[$(i,j)]));
+        }
+        printf("\n");
     }
 }
 
