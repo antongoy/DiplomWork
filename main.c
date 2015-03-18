@@ -185,6 +185,60 @@ void fill_row_bm(lapack_complex_double *row,
 }
 
 
+void fill_row_ak(lapack_complex_double *row,
+        lapack_complex_double *B,
+        lapack_complex_double *C,
+        lapack_complex_double *M,
+        lapack_complex_double *N,
+        int i, int j, int k, int l, int r, int s) {
+
+    int row_size = ((3 * 3) * 2);
+    memset(row, 0, sizeof(lapack_complex_double) * row_size);
+
+    int rax, sax, iax, jax, kax, lax;
+
+    rax = map_index_x(r);
+    sax = map_index_x(s);
+    iax = map_index_x(i);
+    jax = map_index_x(j);
+    kax = map_index_x(k);
+    lax = map_index_x(l);
+
+    row[$(i, j)] = B[$(l, k)] * C[$(r, s)];
+    row[$(iax, jax)] = B[$(lax, kax)] * C[$(rax, sax)];
+
+    int rky, sky, iky, jky, kky, lky;
+
+    rky = map_index_y(r);
+    sky = map_index_y(s);
+    iky = map_index_y(i);
+    jky = map_index_y(j);
+    kky = map_index_y(k);
+    lky = map_index_y(l);
+
+    row[$$(i, j)] = M[$(l, k)] * N[$(r, s)];
+    row[$$(iky, jky)] = M[$(lky, kky)] * N[$(rky, sky)];
+
+    int rkz, skz, ikz, jkz, kkz, lkz;
+
+    rkz = map_index_z2(r);
+    skz = map_index_z2(s);
+    ikz = map_index_z2(i);
+    jkz = map_index_z2(j);
+    kkz = map_index_z2(k);
+    lkz = map_index_z2(l);
+
+    r = map_index_z1(r);
+    s = map_index_z1(s);
+    i = map_index_z1(i);
+    j = map_index_z1(j);
+    k = map_index_z1(k);
+    l = map_index_z1(l);
+
+    row[$$(i, j)] = M[$(k, l)] * N[$(r, s)];
+    row[$$(ikz, jkz)] = M[$(kkz, lkz)] * N[$(rkz, skz)];
+}    
+
 int main(void) {
     lapack_complex_double *A;
 
