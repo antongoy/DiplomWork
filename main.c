@@ -11,7 +11,7 @@
 
 #define N_EQUATIONS 243
 
-inline lapack_complex_double * create_matrix(int w, int l) {
+inline lapack_complex_double * create_matrix(size_t w, size_t l) {
     return (lapack_complex_double *)calloc(w * l, sizeof(lapack_complex_double));
 }
 
@@ -263,6 +263,21 @@ void read_sets(int **sets) {
     }
 }
 
+void free_matrix(lapack_complex_double *matrix) {
+    free(matrix);
+}
+
+
+void free_sets(int **sets) {
+    int i;
+
+    for(i = 0; i < N_EQUATIONS; i++) {
+        free(sets[i]);
+    }
+
+    free(sets);
+}
+
 int main(void) {
     int i;
 
@@ -299,7 +314,14 @@ int main(void) {
                     sets[i][3], sets[i][4], sets[i][5]);
     }
 
-    print_matrix(MAIN_MATRIX, N_EQUATIONS, 18);
+    free_matrix(A);
+    free_matrix(B);
+    free_matrix(C);
+    free_matrix(K);
+    free_matrix(M);
+    free_matrix(N);
+    free_matrix(MAIN_MATRIX);
+    free_sets(sets);
 
     return 0;
 }
