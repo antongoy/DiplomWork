@@ -29,8 +29,8 @@ inline void print_matrix(lapack_complex_double *matrix) {
 
     for (i = 0; i < 3; ++i) {
         for (j = 0; j < 3; ++j) {
-            printf("%g + %g * I ", lapack_complex_double_real(matrix[$(i,j)]),
-                                   lapack_complex_double_imag(matrix[$(i,j)]));
+            printf("%.3g + %.3g * I\t", lapack_complex_double_real(matrix[$(i,j)]),
+                                        lapack_complex_double_imag(matrix[$(i,j)]));
         }
         printf("\n");
     }
@@ -43,6 +43,8 @@ int main(void) {
     A = create_matrix();
 
     fill_matrix(A);
+
+    print_matrix(A);
 
     return 0;
 }
