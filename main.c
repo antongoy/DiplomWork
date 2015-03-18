@@ -4,9 +4,12 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #define $(i, j) ((i) * 3 + (j))
 #define $$(i, j) ((i) * 3 + (j) + 9)
+
+#define N_EQUATIONS 243
 
 inline lapack_complex_double * create_matrix(void) {
     return (lapack_complex_double *)calloc(3 * 3, sizeof(lapack_complex_double));
@@ -23,14 +26,13 @@ void fill_matrix(lapack_complex_double *matrix) {
     }
 }
 
-
-inline void print_matrix(lapack_complex_double *matrix) {
+inline void  print_matrix(lapack_complex_double *matrix) {
     int i, j;
 
     for (i = 0; i < 3; ++i) {
         for (j = 0; j < 3; ++j) {
             printf("%.3g + %.3g * I\t", lapack_complex_double_real(matrix[$(i,j)]),
-                                        lapack_complex_double_imag(matrix[$(i,j)]));
+                    lapack_complex_double_imag(matrix[$(i,j)]));
         }
         printf("\n");
     }
@@ -239,12 +241,55 @@ void fill_row_ak(lapack_complex_double *row,
     row[$$(ikz, jkz)] = M[$(kkz, lkz)] * N[$(rkz, skz)];
 }    
 
+void read_sets(int **sets) {
+    int i;
+    FILE *f;
+
+    if((f = fopen("sets.txt", "r")) < 0) {
+        perror("File reading error:");
+        exit(1);
+    }
+
+    for (i = 0; i < N_EQUATIONS; ++i) {
+        fscanf(f, "%d %d %d %d %d %d", &sets[i][0], &sets[i][1], &sets[i][2], &sets[i][3], &sets[i][4], &sets[i][5]);
+    }
+
+    for (i = 0; i < N_EQUATIONS; ++i) {
+        sets[i][0]--;
+        sets[i][1]--;
+        sets[i][2]--;
+        sets[i][3]--;
+        sets[i][4]--;
+        sets[i][5]--;
+    }
+}
+
 int main(void) {
-    lapack_complex_double *A;
+    int i;
+
+    lapack_complex_double *A, *B, *C, *K, *M, *N;
+    int **sets = (int **)calloc(N_EQUATIONS, sizeof(int *));
+
+    for(i = 0; i < N_EQUATIONS; i++) {
+        sets[i] = (int *)calloc(6, sizeof(int));
+    }
+
+    read_sets(sets);
+    setall(time(0), time(0));
 
     A = create_matrix();
+    B = create_matrix();
+    C = create_matrix();
+    K = create_matrix();
+    M = create_matrix();
+    N = create_matrix();
 
     fill_matrix(A);
+    fill_matrix(B);
+    fill_matrix(C);
+    fill_matrix(K);
+    fill_matrix(M);
+    fill_matrix(N);
 
     print_matrix(A);
 
