@@ -11,8 +11,8 @@
 
 #define N_EQUATIONS 243
 
-inline lapack_complex_double * create_matrix(void) {
-    return (lapack_complex_double *)calloc(3 * 3, sizeof(lapack_complex_double));
+inline lapack_complex_double * create_matrix(int w, int l) {
+    return (lapack_complex_double *)calloc(w * l, sizeof(lapack_complex_double));
 }
 
 
@@ -21,18 +21,19 @@ void fill_matrix(lapack_complex_double *matrix) {
 
     for (i = 0; i < 3; ++i) {
         for (j = 0; j < 3; ++j) {
-            matrix[$(i, j)] = lapack_make_complex_double(ranf(), ranf());
+            //matrix[$(i, j)] = lapack_make_complex_double(ranf(), ranf());
+            matrix[$(i, j)] = lapack_make_complex_double(1, 1);
         }
     }
 }
 
-inline void  print_matrix(lapack_complex_double *matrix) {
+inline void  print_matrix(lapack_complex_double *matrix, int w, int l) {
     int i, j;
 
-    for (i = 0; i < 3; ++i) {
-        for (j = 0; j < 3; ++j) {
-            printf("%.3g + %.3g * I\t", lapack_complex_double_real(matrix[$(i,j)]),
-                    lapack_complex_double_imag(matrix[$(i,j)]));
+    for (i = 0; i < w; ++i) {
+        for (j = 0; j < l; ++j) {
+            printf("(%.3g, %.3g)  ", lapack_complex_double_real(matrix[i * l + j]),
+                                     lapack_complex_double_imag(matrix[i * l + j]));
         }
         printf("\n");
     }
@@ -94,9 +95,9 @@ void fill_row_cn(lapack_complex_double *row,
     kcx = map_index_x(k);
     lcx = map_index_x(l);
 
-    row[$(r, s)] = A[$(i, j)] * B[$(k, l)];
-    row[$(rcx, scx)] = A[$(icx, jcx)] * B[$(kcx, lcx)];
-    
+    row[$(r, s)] += A[$(i, j)] * B[$(k, l)];
+    row[$(rcx, scx)] += A[$(icx, jcx)] * B[$(kcx, lcx)];
+
     int rny, sny, iny, jny, kny, lny;
 
     rny = map_index_y(r);
@@ -106,8 +107,8 @@ void fill_row_cn(lapack_complex_double *row,
     kny = map_index_y(k);
     lny = map_index_y(l);
     
-    row[$$(r, s)] = K[$(i, j)] * M[$(k, l)];
-    row[$$(rny, sny)] = K[$(iny, jny)] * M[$(kny, lny)];
+    row[$$(r, s)] += K[$(i, j)] * M[$(k, l)];
+    row[$$(rny, sny)] += K[$(iny, jny)] * M[$(kny, lny)];
 
     int rnz, snz, inz, jnz, knz, lnz;
 
@@ -125,10 +126,8 @@ void fill_row_cn(lapack_complex_double *row,
     k = map_index_z1(k);
     l = map_index_z1(l);
 
-    row[$$(r, s)] = K[$(i, j)] * M[$(k, l)];
-    row[$$(rnz, snz)] = K[$(inz, jnz)] * M[$(knz, lnz)];
-    
-    
+    row[$$(r, s)] += K[$(i, j)] * M[$(k, l)];
+    row[$$(rnz, snz)] += K[$(inz, jnz)] * M[$(knz, lnz)];
 }
 
 
@@ -151,8 +150,8 @@ void fill_row_bm(lapack_complex_double *row,
     kbx = map_index_x(k);
     lbx = map_index_x(l);
 
-    row[$(k, l)] = A[$(i, j)] * C[$(r, s)];
-    row[$(kbx, lbx)] = A[$(ibx, jbx)] * C[$(rbx, sbx)];
+    row[$(k, l)] += A[$(i, j)] * C[$(r, s)];
+    row[$(kbx, lbx)] += A[$(ibx, jbx)] * C[$(rbx, sbx)];
 
     int rmy, smy, imy, jmy, kmy, lmy;
 
@@ -163,8 +162,8 @@ void fill_row_bm(lapack_complex_double *row,
     kmy = map_index_y(k);
     lmy = map_index_y(l);
 
-    row[$$(k, l)] = K[$(i, j)] * N[$(r, s)];
-    row[$$(kmy, lmy)] = K[$(imy, jmy)] * N[$(rmy, smy)];
+    row[$$(k, l)] += K[$(i, j)] * N[$(r, s)];
+    row[$$(kmy, lmy)] += K[$(imy, jmy)] * N[$(rmy, smy)];
 
     int rmz, smz, imz, jmz, kmz, lmz;
 
@@ -182,8 +181,8 @@ void fill_row_bm(lapack_complex_double *row,
     k = map_index_z1(k);
     l = map_index_z1(l);
 
-    row[$$(k, l)] = K[$(i, j)] * N[$(r, s)];
-    row[$$(kmz, lmz)] = K[$(imz, jmz)] * N[$(rmz, smz)];
+    row[$$(k, l)] += K[$(i, j)] * N[$(r, s)];
+    row[$$(kmz, lmz)] += K[$(imz, jmz)] * N[$(rmz, smz)];
 }
 
 
@@ -206,8 +205,8 @@ void fill_row_ak(lapack_complex_double *row,
     kax = map_index_x(k);
     lax = map_index_x(l);
 
-    row[$(i, j)] = B[$(l, k)] * C[$(r, s)];
-    row[$(iax, jax)] = B[$(lax, kax)] * C[$(rax, sax)];
+    row[$(i, j)] += B[$(k, l)] * C[$(r, s)];
+    row[$(iax, jax)] += B[$(kax, lax)] * C[$(rax, sax)];
 
     int rky, sky, iky, jky, kky, lky;
 
@@ -218,8 +217,8 @@ void fill_row_ak(lapack_complex_double *row,
     kky = map_index_y(k);
     lky = map_index_y(l);
 
-    row[$$(i, j)] = M[$(l, k)] * N[$(r, s)];
-    row[$$(iky, jky)] = M[$(lky, kky)] * N[$(rky, sky)];
+    row[$$(i, j)] += M[$(k, l)] * N[$(r, s)];
+    row[$$(iky, jky)] += M[$(kky, lky)] * N[$(rky, sky)];
 
     int rkz, skz, ikz, jkz, kkz, lkz;
 
@@ -237,8 +236,8 @@ void fill_row_ak(lapack_complex_double *row,
     k = map_index_z1(k);
     l = map_index_z1(l);
 
-    row[$$(i, j)] = M[$(k, l)] * N[$(r, s)];
-    row[$$(ikz, jkz)] = M[$(kkz, lkz)] * N[$(rkz, skz)];
+    row[$$(i, j)] += M[$(k, l)] * N[$(r, s)];
+    row[$$(ikz, jkz)] += M[$(kkz, lkz)] * N[$(rkz, skz)];
 }    
 
 void read_sets(int **sets) {
@@ -268,6 +267,7 @@ int main(void) {
     int i;
 
     lapack_complex_double *A, *B, *C, *K, *M, *N;
+    lapack_complex_double *MAIN_MATRIX;
     int **sets = (int **)calloc(N_EQUATIONS, sizeof(int *));
 
     for(i = 0; i < N_EQUATIONS; i++) {
@@ -277,12 +277,12 @@ int main(void) {
     read_sets(sets);
     setall(time(0), time(0));
 
-    A = create_matrix();
-    B = create_matrix();
-    C = create_matrix();
-    K = create_matrix();
-    M = create_matrix();
-    N = create_matrix();
+    A = create_matrix(3, 3);
+    B = create_matrix(3, 3);
+    C = create_matrix(3, 3);
+    K = create_matrix(3, 3);
+    M = create_matrix(3, 3);
+    N = create_matrix(3, 3);
 
     fill_matrix(A);
     fill_matrix(B);
@@ -291,7 +291,15 @@ int main(void) {
     fill_matrix(M);
     fill_matrix(N);
 
-    print_matrix(A);
+    MAIN_MATRIX = (lapack_complex_double *)calloc(N_EQUATIONS * 18, sizeof(lapack_complex_double));
+
+    for (i = 0; i < N_EQUATIONS; ++i) {
+        fill_row_cn(&MAIN_MATRIX[i * 18], A, B, K, M,
+                    sets[i][0], sets[i][1], sets[i][2],
+                    sets[i][3], sets[i][4], sets[i][5]);
+    }
+
+    print_matrix(MAIN_MATRIX, N_EQUATIONS, 18);
 
     return 0;
 }
