@@ -10,6 +10,7 @@
 #define $$(i, j) ((i) * 3 + (j) + 9)
 
 #define N_EQUATIONS 243
+#define SHORTED_N_EQUATIONS 122
 
 inline lapack_complex_double * create_matrix(size_t w, size_t l) {
     return (lapack_complex_double *)calloc(w * l, sizeof(lapack_complex_double));
@@ -21,8 +22,8 @@ void fill_matrix(lapack_complex_double *matrix) {
 
     for (i = 0; i < 3; ++i) {
         for (j = 0; j < 3; ++j) {
-            //matrix[$(i, j)] = lapack_make_complex_double(ranf(), ranf());
-            matrix[$(i, j)] = lapack_make_complex_double(1, 1);
+            matrix[$(i, j)] = lapack_make_complex_double(ranf(), ranf());
+            //matrix[$(i, j)] = lapack_make_complex_double(1, 1);
         }
     }
 }
@@ -244,16 +245,16 @@ void read_sets(int **sets) {
     int i;
     FILE *f;
 
-    if((f = fopen("sets.txt", "r")) < 0) {
+    if((f = fopen("filter_sets.txt", "r")) < 0) {
         perror("File reading error:");
         exit(1);
     }
 
-    for (i = 0; i < N_EQUATIONS; ++i) {
+    for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
         fscanf(f, "%d %d %d %d %d %d", &sets[i][0], &sets[i][1], &sets[i][2], &sets[i][3], &sets[i][4], &sets[i][5]);
     }
 
-    for (i = 0; i < N_EQUATIONS; ++i) {
+    for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
         sets[i][0]--;
         sets[i][1]--;
         sets[i][2]--;
@@ -261,6 +262,8 @@ void read_sets(int **sets) {
         sets[i][4]--;
         sets[i][5]--;
     }
+
+    fclose(f);
 }
 
 void free_matrix(lapack_complex_double *matrix) {
@@ -271,7 +274,7 @@ void free_matrix(lapack_complex_double *matrix) {
 void free_sets(int **sets) {
     int i;
 
-    for(i = 0; i < N_EQUATIONS; i++) {
+    for(i = 0; i < SHORTED_N_EQUATIONS; i++) {
         free(sets[i]);
     }
 
@@ -283,9 +286,9 @@ int main(void) {
 
     lapack_complex_double *A, *B, *C, *K, *M, *N;
     lapack_complex_double *MAIN_MATRIX;
-    int **sets = (int **)calloc(N_EQUATIONS, sizeof(int *));
+    int **sets = (int **)calloc(SHORTED_N_EQUATIONS, sizeof(int *));
 
-    for(i = 0; i < N_EQUATIONS; i++) {
+    for(i = 0; i < SHORTED_N_EQUATIONS; i++) {
         sets[i] = (int *)calloc(6, sizeof(int));
     }
 
@@ -306,9 +309,9 @@ int main(void) {
     fill_matrix(M);
     fill_matrix(N);
 
-    MAIN_MATRIX = (lapack_complex_double *)calloc(N_EQUATIONS * 18, sizeof(lapack_complex_double));
+    MAIN_MATRIX = (lapack_complex_double *)calloc(SHORTED_N_EQUATIONS * 18, sizeof(lapack_complex_double));
 
-    for (i = 0; i < N_EQUATIONS; ++i) {
+    for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
         fill_row_cn(&MAIN_MATRIX[i * 18], A, B, K, M,
                     sets[i][0], sets[i][1], sets[i][2],
                     sets[i][3], sets[i][4], sets[i][5]);
@@ -322,6 +325,7 @@ int main(void) {
     free_matrix(N);
     free_matrix(MAIN_MATRIX);
     free_sets(sets);
+
 
     return 0;
 }

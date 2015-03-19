@@ -8,7 +8,7 @@ com.o: ranlib/com.c
 	gcc -O3 -c ranlib/com.c 
 
 main.o: main.c
-	gcc -Wall -g -ggdb -c main.c
+	gcc -Wall -g -ggdb -O0 -c main.c
 
 clean:
 	rm -f *.o
