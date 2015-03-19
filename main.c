@@ -1,9 +1,12 @@
 #include "ranlib/ranlib.h"
 
 #include <lapacke.h>
+#include <lapacke_utils.h>
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
+#include <complex.h>
 #include <time.h>
 
 #define $(i, j) ((i) * 3 + (j))
@@ -11,6 +14,7 @@
 
 #define N_EQUATIONS 243
 #define SHORTED_N_EQUATIONS 122
+#define N_VARS 18
 
 inline lapack_complex_double * create_matrix(size_t w, size_t l) {
     return (lapack_complex_double *)calloc(w * l, sizeof(lapack_complex_double));
@@ -107,7 +111,7 @@ void fill_row_cn(lapack_complex_double *row,
     jny = map_index_y(j);
     kny = map_index_y(k);
     lny = map_index_y(l);
-    
+
     row[$$(r, s)] += K[$(i, j)] * M[$(k, l)];
     row[$$(rny, sny)] += K[$(iny, jny)] * M[$(kny, lny)];
 
@@ -239,7 +243,7 @@ void fill_row_ak(lapack_complex_double *row,
 
     row[$$(i, j)] += M[$(k, l)] * N[$(r, s)];
     row[$$(ikz, jkz)] += M[$(kkz, lkz)] * N[$(rkz, skz)];
-}    
+}
 
 void read_sets(int **sets) {
     int i;
@@ -281,11 +285,37 @@ void free_sets(int **sets) {
     free(sets);
 }
 
+lapack_complex_double create_lhs_vector(int i, int j, int k, int l, int r, int s) {
+    if (j == k && l == r && s == i) {
+        if (i == j && k == l && r == s) {
+            return lapack_make_complex_double(0, 0);
+        } else {
+            return lapack_make_complex_double(1.0 / 3.0, 0);
+        }
+    } else {
+        if (i == j && k == l && r == s) {
+            return lapack_make_complex_double(- 1.0 / 3.0, 0);
+        } else {
+            return lapack_make_complex_double(0, 0);
+        }
+    }
+}
+
+double compute_residual(lapack_complex_double *main_vector) {
+    double residual = 0.0;
+    int i;
+    for (i = N_VARS; i < SHORTED_N_EQUATIONS; ++i) {
+        residual += pow(lapack_complex_float_real(main_vector[i]), 2) +
+                pow(lapack_complex_float_imag(main_vector[i]), 2);
+    }
+}
+
+
 int main(void) {
     int i;
 
     lapack_complex_double *A, *B, *C, *K, *M, *N;
-    lapack_complex_double *MAIN_MATRIX;
+    lapack_complex_double *MAIN_MATRIX, *MAIN_VECTOR;
     int **sets = (int **)calloc(SHORTED_N_EQUATIONS, sizeof(int *));
 
     for(i = 0; i < SHORTED_N_EQUATIONS; i++) {
@@ -310,12 +340,29 @@ int main(void) {
     fill_matrix(N);
 
     MAIN_MATRIX = (lapack_complex_double *)calloc(SHORTED_N_EQUATIONS * 18, sizeof(lapack_complex_double));
+    MAIN_VECTOR = (lapack_complex_double *)calloc(SHORTED_N_EQUATIONS, sizeof(lapack_complex_double));
 
     for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
         fill_row_cn(&MAIN_MATRIX[i * 18], A, B, K, M,
                     sets[i][0], sets[i][1], sets[i][2],
                     sets[i][3], sets[i][4], sets[i][5]);
+        MAIN_VECTOR[i] = create_lhs_vector(sets[i][0], sets[i][1], sets[i][2],
+                                           sets[i][3], sets[i][4], sets[i][5]);
     }
+
+    int info;
+    info = LAPACKE_zgels(LAPACK_ROW_MAJOR, 'N', SHORTED_N_EQUATIONS, N_VARS, 1, MAIN_MATRIX, N_VARS, MAIN_VECTOR, 1);
+
+    if (info > 0) {
+        perror("The solution could not be computed (the matrix have not the full rank)");
+        exit(1);
+    }
+
+    for (i = 0; i < N_VARS; i++) {
+        printf("(%.3g,%.3g)\n", lapack_complex_float_real(MAIN_VECTOR[i]), lapack_complex_double_imag(MAIN_VECTOR[i]));
+    }
+
+    printf("Residual = %g\n", residual);
 
     free_matrix(A);
     free_matrix(B);
@@ -325,7 +372,6 @@ int main(void) {
     free_matrix(N);
     free_matrix(MAIN_MATRIX);
     free_sets(sets);
-
 
     return 0;
 }
