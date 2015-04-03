@@ -30,10 +30,28 @@ void fill_matrix(lapack_complex_double *matrix) {
         for (j = 0; j < 3; ++j)  {
             // Генерируются числа в отрезке [-5.0,5.0]
             // (ranf() возврашает числа в отрезке [0,1])
-            int c = rand() % 5 + 1;
+            int c = 5;
             double a = (2.0 *ranf() - 1.0) * c;
             double b = (2.0 *ranf() - 1.0) * c;
             matrix[$(i, j)] = lapack_make_complex_double(a, b);
+        }
+    }
+}
+
+void fill_matrix_except_one_element(lapack_complex_double *matrix) {
+    int i, j;
+
+    int not_fill_i = rand() % 3;
+    int not_fill_j = rand() % 3;
+
+    for (i = 0; i < 3; ++i) {
+        for (j = 0; j < 3; ++j)  {
+            if (i == not_fill_i && j == not_fill_j) {
+                int c = 5;
+                double a = (2.0 *ranf() - 1.0) * c;
+                double b = (2.0 *ranf() - 1.0) * c;
+                matrix[$(i, j)] = lapack_make_complex_double(a, b);
+            }
         }
     }
 }
