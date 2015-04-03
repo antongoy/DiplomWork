@@ -16,25 +16,30 @@
 #define SHORTED_N_EQUATIONS 122
 #define N_VARS 18
 
+// Выделяет память для матрицы разсера w * l
 inline lapack_complex_double * create_matrix(size_t w, size_t l) {
     return (lapack_complex_double *)calloc(w * l, sizeof(lapack_complex_double));
 }
 
 
+// Заполняет матрицу случайными комплексными числами
 void fill_matrix(lapack_complex_double *matrix) {
     int i, j;
 
     for (i = 0; i < 3; ++i) {
         for (j = 0; j < 3; ++j)  {
+            // Генерируются числа в отрезке [-5.0,5.0]
+            // (ranf() возврашает числа в отрезке [0,1])
             int c = rand() % 5 + 1;
             double a = (2.0 *ranf() - 1.0) * c;
             double b = (2.0 *ranf() - 1.0) * c;
             matrix[$(i, j)] = lapack_make_complex_double(a, b);
-            //matrix[$(i, j)] = lapack_make_complex_double(1, 1);
         }
     }
 }
 
+
+// Просто распечатывает матрицу
 inline void  print_matrix(lapack_complex_double *matrix, int w, int l) {
     int i, j;
 
@@ -48,6 +53,14 @@ inline void  print_matrix(lapack_complex_double *matrix, int w, int l) {
 }
 
 
+/**
+* Если рассмотреть  матрицы X_tAX_t^{-1}, то получается, если не учитывать \epsilon
+* (так как в итоговые уравнения все равно они войдут), то после необходимого перемножения
+* мы получим только лишь две различные матрицы A и A' (в А' "крутятся" 2 и 3 строка, 2 и 3 столбец)
+*/
+
+
+// Является перестановкой индексов, которая оставляет на месте индекс 0, но меняет местам 1 и 2
 inline int map_index_x(int i) {
     switch (i) {
         case 0: return 0;
@@ -58,6 +71,14 @@ inline int map_index_x(int i) {
 }
 
 
+/**
+* Если рассмотреть  матрицы Y_tAY_t^{-1}, то получается, если не учитывать \epsilon
+* (так как в итоговые уравнения все равно они войдут), то после необходимого перемножения
+* мы получим только лишь две различные матрицы A и A' (в А' "крутятся" 1 и 3 строка, 1 и 3 столбец)
+*/
+
+
+// Является перестановкой индексов, которая оставляет на месте индекс 1, но меняет местам 0 и 2
 inline int map_index_y(int i) {
     switch (i) {
         case 0: return 2;
@@ -68,11 +89,21 @@ inline int map_index_y(int i) {
 }
 
 
+/**
+* Если рассмотреть  матрицы Z_tAZ_t^{-1}, то получается, если не учитывать \epsilon
+* (так как в итоговые уравнения все равно они войдут), то после необходимого перемножения
+* мы получим только лишь две различные матрицы A' и A'' (в А' "крутятся" 1 и 3 строка, 1 и 3 столбец, а
+* в А'' происходит циклический сдвиг по столбцам и строкам).
+*
+*/
+
+// Является перестановкой индексов, которая оставляет на месте индекс 0, но меняет местам 1 и 2
 inline int map_index_z1(int i) {
     return map_index_x(i);
 }
 
 
+// Является циклическим сдвигом, который совершают матрицы Z_t
 inline int map_index_z2(int i) {
     switch (i) {
         case 0: return 2;
@@ -83,7 +114,7 @@ inline int map_index_z2(int i) {
 }
 
 
-
+// Генерирует матрицу системы при свободныз переменных из матриц C и N
 void fill_row_cn(lapack_complex_double *row,
                  lapack_complex_double *A,
                  lapack_complex_double *B,
@@ -139,6 +170,7 @@ void fill_row_cn(lapack_complex_double *row,
 }
 
 
+// Генерирует матрицу системы при свободныз переменных из матриц B и M
 void fill_row_bm(lapack_complex_double *row,
         lapack_complex_double *A,
         lapack_complex_double *C,
@@ -194,6 +226,7 @@ void fill_row_bm(lapack_complex_double *row,
 }
 
 
+// Генерирует матрицу системы при свободныз переменных из матриц A и K
 void fill_row_ak(lapack_complex_double *row,
         lapack_complex_double *B,
         lapack_complex_double *C,
@@ -248,6 +281,7 @@ void fill_row_ak(lapack_complex_double *row,
     row[$$(ikz, jkz)] += M[$(kkz, lkz)] * N[$(rkz, skz)];
 }
 
+// Читает из файла те наборы индексов, которые остаются в итоговой системе
 void read_sets(int **sets) {
     int i;
     FILE *f;
@@ -288,6 +322,8 @@ void free_sets(int **sets) {
     free(sets);
 }
 
+
+// Создает вектор столбец правой части уравнения
 lapack_complex_double create_lhs_vector(int i, int j, int k, int l, int r, int s) {
     if (j == k && l == r && s == i) {
         if (i == j && k == l && r == s) {
@@ -304,6 +340,8 @@ lapack_complex_double create_lhs_vector(int i, int j, int k, int l, int r, int s
     }
 }
 
+
+// Вычисляется невязка
 double compute_residual(lapack_complex_double *main_vector) {
     double residual = 0.0;
     int i;
@@ -318,6 +356,36 @@ double compute_residual(lapack_complex_double *main_vector) {
 
 void fill_matrix_new(lapack_complex_double *dest, lapack_complex_double *src) {
     memcpy(dest, src, sizeof(lapack_complex_double) * 9);
+}
+
+
+double get_max_abs_of_matrix(lapack_complex_double *matrix) {
+    int i, j;
+
+    double max_abs = -1;
+
+    for (i = 0; i < 3; ++i) {
+        for (j = 0; j < 3; ++j) {
+            double elem_max = sqrt(pow(lapack_complex_double_real(matrix[$(i,j)]), 2.0) +
+                                   pow(lapack_complex_double_imag(matrix[$(i,j)]), 2.0));
+            if (elem_max > max_abs) {
+                max_abs = elem_max;
+            }
+        }
+    }
+
+    return max_abs;
+}
+
+
+void scalar_mult(lapack_complex_double *matrix, double scalar) {
+    int i, j;
+
+    for (i = 0; i < 3; ++i) {
+        for (j = 0; j < 3; ++j) {
+            matrix[$(i, j)] *= scalar;
+        }
+    }
 }
 
 
@@ -365,12 +433,16 @@ int main(void) {
     generate_func[2] = fill_row_bm;
 
     int iterate = 0;
-    int main_count = 20000;
+    int main_count = 200;
     double prev_residual = 0.0;
     double cur_residual = 0.0;
 
+    double max_abs_a, max_abs_b, max_abs_c;
+    double max_abs_k, max_abs_m, max_abs_n;
+
     lapack_complex_double *matrix1, *matrix2, *matrix3, *matrix4;
 
+    // MAIN LOOP START
     do {
         int matrix_index = iterate % 3;
 
@@ -410,6 +482,30 @@ int main(void) {
         if (matrix_index == 0) {
             fill_matrix_new(C, &MAIN_VECTOR[0]);
             fill_matrix_new(N, &MAIN_VECTOR[9]);
+
+            if (iterate == 0) {
+
+                max_abs_a = get_max_abs_of_matrix(A);
+                max_abs_b = get_max_abs_of_matrix(B);
+                max_abs_c = get_max_abs_of_matrix(C);
+
+                double k = pow(max_abs_a * max_abs_b * max_abs_c, 1 / 3.);
+
+                scalar_mult(A, k / max_abs_a);
+                scalar_mult(B, k / max_abs_b);
+                scalar_mult(C, k / max_abs_c);
+
+                max_abs_k = get_max_abs_of_matrix(K);
+                max_abs_m = get_max_abs_of_matrix(M);
+                max_abs_n = get_max_abs_of_matrix(N);
+
+                k = pow(max_abs_k * max_abs_m * max_abs_n, 1 / 3.);
+
+                scalar_mult(K, k / max_abs_k);
+                scalar_mult(M, k / max_abs_m);
+                scalar_mult(N, k / max_abs_n);
+            }
+
         } else if (matrix_index == 1) {
             fill_matrix_new(A, &MAIN_VECTOR[0]);
             fill_matrix_new(K, &MAIN_VECTOR[9]);
@@ -450,19 +546,7 @@ int main(void) {
             main_count--;
         }
     } while (main_count != 0);
-
-    print_matrix(A, 3, 3);
-    printf("\n");
-    print_matrix(B, 3, 3);
-    printf("\n");
-    print_matrix(C, 3, 3);
-    printf("\n");
-    print_matrix(K, 3, 3);
-    printf("\n");
-    print_matrix(M, 3, 3);
-    printf("\n");
-    print_matrix(N, 3, 3);
-
+    // MAIN LOOP END
 
     free_matrix(A);
     free_matrix(B);
