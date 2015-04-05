@@ -8,13 +8,14 @@
 #include <math.h>
 #include <complex.h>
 #include <time.h>
+#include <gmpxx.h>
 
 #define $(i, j) ((i) * 3 + (j))
 #define $$(i, j) ((i) * 3 + (j) + 9)
 #define $$$(i, j) ((i) * 3 + (j) + 18)
 
 #define N_EQUATIONS 243
-#define SHORTED_N_EQUATIONS 122
+#define N_ATTEMPTS 1
 #define N_VARS 27
 
 #define I 0
@@ -23,7 +24,6 @@
 #define S 3
 #define K 4
 #define L 5
-
 
 
 inline lapack_complex_double * create_matrix(size_t w, size_t l) {
@@ -133,7 +133,198 @@ void fillin_row(lapack_complex_double *row,
     row[$$$(indexes_z[R], indexes_z[S])] += E[$(indexes_z[I], indexes_z[J])] * F[$(indexes_z[K], indexes_z[L])];
 }
 
+
+lapack_complex_double fillin_rhs(int indexes[]) {
+    if (indexes[J] == indexes[K] &&
+        indexes[L] == indexes[R] &&
+        indexes[S] == indexes[I]) {
+
+        if (indexes[I] == indexes[J] &&
+            indexes[K] == indexes[L] &&
+            indexes[R] == indexes[S]) {
+
+            return lapack_make_complex_double(0, 0);
+        } else {
+            return lapack_make_complex_double(1.0 / 3.0, 0);
+        }
+
+    } else {
+        if (indexes[I] == indexes[J] &&
+            indexes[K] == indexes[L] &&
+            indexes[R] == indexes[S]) {
+
+            return lapack_make_complex_double(-1.0 / 3.0, 0);
+        } else {
+            return lapack_make_complex_double(0, 0);
+        }
+    }
+}
+
+
+double compute_residual(lapack_complex_double *main_vector) {
+    double residual = 0.0;
+    int i;
+    for (i = N_VARS; i < N_EQUATIONS; ++i) {
+        residual += pow(lapack_complex_float_real(main_vector[i]), 2) +
+                pow(lapack_complex_float_imag(main_vector[i]), 2);
+    }
+
+    return residual;
+}
+
+int **read_sets() {
+    int i;
+    FILE *f;
+
+    int **sets = (int **)calloc(N_EQUATIONS, sizeof(int *));
+
+    for(i = 0; i < N_EQUATIONS; i++) {
+        sets[i] = (int *)calloc(6, sizeof(int));
+    }
+
+    if((f = fopen("sets.txt", "r")) < 0) {
+        perror("File opening error:");
+        exit(1);
+    }
+
+    for (i = 0; i < N_EQUATIONS; ++i) {
+        int n = fscanf(f, "%d %d %d %d %d %d", &sets[i][0],
+                &sets[i][1], &sets[i][2], &sets[i][3], &sets[i][4], &sets[i][5]);
+
+        if (n < 0) {
+            perror("File reading error:");
+            exit(1);
+        }
+    }
+
+    for (i = 0; i < N_EQUATIONS; ++i) {
+        sets[i][0]--;
+        sets[i][1]--;
+        sets[i][2]--;
+        sets[i][3]--;
+        sets[i][4]--;
+        sets[i][5]--;
+    }
+
+    fclose(f);
+
+    return sets;
+}
+
+
+void free_matrix(lapack_complex_double *matrix) {
+    free(matrix);
+}
+
+
+void free_sets(int **sets) {
+    int i;
+
+    for(i = 0; i < N_EQUATIONS; i++) {
+        free(sets[i]);
+    }
+
+    free(sets);
+}
+
 int main(void) {
+    int i;
+    int internal_iteration = 0, external_iteration = 0;
+    double prev_residual = 0.0, cur_residual = 0.0;
+    lapack_complex_double *matrix1, *matrix2, *matrix3, *matrix4, *matrix5, *matrix6;
+
+    srand(time(0));
+    setall(time(0), time(0));
+
+    lapack_complex_double *A, *B, *C, *Q, *O, *P, *U, *V, *W;
+    lapack_complex_double *MATRIX, *VECTOR;
+
+    int **sets = read_sets();
+
+    A = create_matrix(3, 3);
+    B = create_matrix(3, 3);
+    C = create_matrix(3, 3);
+    Q = create_matrix(3, 3);
+    O = create_matrix(3, 3);
+    P = create_matrix(3, 3);
+    U = create_matrix(3, 3);
+    V = create_matrix(3, 3);
+    W = create_matrix(3, 3);
+
+    fillin_matrix(A);
+    fillin_matrix(B);
+    fillin_matrix(C);
+    fillin_matrix(Q);
+    fillin_matrix(O);
+    fillin_matrix(P);
+    fillin_matrix(U);
+    fillin_matrix(V);
+    fillin_matrix(W);
+
+    MATRIX = (lapack_complex_double *)calloc(N_EQUATIONS * N_VARS, sizeof(lapack_complex_double));
+    VECTOR = (lapack_complex_double *)calloc(N_EQUATIONS, sizeof(lapack_complex_double));
+
+    do {
+        int matrix_index = internal_iteration % 3;
+
+        if (matrix_index == 0) {
+            matrix1 = A;
+            matrix2 = B;
+            matrix3 = Q;
+            matrix4 = O;
+            matrix5 = U;
+            matrix6 = V;
+        } else if (matrix_index == 1) {
+            matrix1 = B;
+            matrix2 = C;
+            matrix3 = O;
+            matrix4 = P;
+            matrix5 = V;
+            matrix6 = W;
+        } else {
+            matrix1 = A;
+            matrix2 = C;
+            matrix3 = O;
+            matrix4 = Q;
+            matrix5 = U;
+            matrix6 = W;
+        }
+
+        for (i = 0; i < N_EQUATIONS; ++i) {
+            fillin_row(&MATRIX[i * N_VARS], matrix1, matrix2, matrix3, matrix4, matrix5, matrix6, sets[i]);
+            VECTOR[i] = fillin_rhs(sets[i]);
+        }
+
+        int info;
+        info = LAPACKE_zgels(LAPACK_ROW_MAJOR, 'N', N_EQUATIONS, N_VARS, 1, MATRIX, N_VARS, VECTOR, 1);
+
+        if (info > 0) {
+            perror("The solution could not be computed (the matrix have not the full rank)");
+            exit(1);
+        }
+
+        if (matrix_index == 0) {
+            fill_matrix_new(C, &VECTOR[0]);
+            fill_matrix_new(P, &VECTOR[9]);
+            fill_matrix_new(W, &VECTOR[18]);
+        } else if (matrix_index == 1) {
+            fill_matrix_new(A, &VECTOR[0]);
+            fill_matrix_new(Q, &VECTOR[9]);
+            fill_matrix_new(U, &VECTOR[18]);
+        } else {
+            fill_matrix_new(B, &VECTOR[0]);
+            fill_matrix_new(O, &VECTOR[9]);
+            fill_matrix_new(V, &VECTOR[18]);
+        }
+
+        external_iteration++;
+    } while (external_iteration < N_ATTEMPTS);
+
+
+
+
+
+
 
     return 0;
 }
