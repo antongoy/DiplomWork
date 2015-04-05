@@ -38,15 +38,14 @@ void fill_matrix(lapack_complex_double *matrix) {
     }
 }
 
-void fill_matrix_except_one_element(lapack_complex_double *matrix) {
+void fill_matrix_except_one_element(lapack_complex_double *matrix, int *not_fill_i) {
     int i, j;
 
-    int not_fill_i = rand() % 3;
-    int not_fill_j = rand() % 3;
+    *not_fill_i = rand() % 3;
 
     for (i = 0; i < 3; ++i) {
         for (j = 0; j < 3; ++j)  {
-            if (i == not_fill_i && j == not_fill_j) {
+            if (i != *not_fill_i || j != *not_fill_i) {
                 int c = 5;
                 double a = (2.0 *ranf() - 1.0) * c;
                 double b = (2.0 *ranf() - 1.0) * c;
@@ -107,7 +106,7 @@ inline int map_index_y(int i) {
 }
 
 
-/**
+/*
 * Если рассмотреть  матрицы Z_tAZ_t^{-1}, то получается, если не учитывать \epsilon
 * (так как в итоговые уравнения все равно они войдут), то после необходимого перемножения
 * мы получим только лишь две различные матрицы A' и A'' (в А' "крутятся" 1 и 3 строка, 1 и 3 столбец, а
@@ -115,18 +114,22 @@ inline int map_index_y(int i) {
 *
 */
 
-// Является перестановкой индексов, которая оставляет на месте индекс 0, но меняет местам 1 и 2
 inline int map_index_z1(int i) {
-    return map_index_x(i);
+    switch (i) {
+        case 0: return 1;
+        case 1: return 2;
+        case 2: return 0;
+    }
+    return i;
+//return map_index_x(i);
 }
 
 
-// Является циклическим сдвигом, который совершают матрицы Z_t
 inline int map_index_z2(int i) {
     switch (i) {
-        case 0: return 2;
+        case 0: return 1;
         case 1: return 0;
-        case 2: return 1;
+        case 2: return 2;
     }
     return i;
 }
@@ -310,7 +313,10 @@ void read_sets(int **sets) {
     }
 
     for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
-        fscanf(f, "%d %d %d %d %d %d", &sets[i][0], &sets[i][1], &sets[i][2], &sets[i][3], &sets[i][4], &sets[i][5]);
+        if (fscanf(f, "%d %d %d %d %d %d", &sets[i][0],
+                &sets[i][1], &sets[i][2], &sets[i][3], &sets[i][4], &sets[i][5]) <= 0) {
+            exit(-1);
+        }
     }
 
     for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
@@ -406,6 +412,27 @@ void scalar_mult(lapack_complex_double *matrix, double scalar) {
     }
 }
 
+void compute_unknown_element(double rhs, lapack_complex_double *matrix, int not_fill_i) {
+    int i;
+
+    matrix[$(not_fill_i, not_fill_i)] = rhs;
+
+    for (i = 0; i < 3; ++i) {
+        if (i != not_fill_i) {
+            matrix[$(not_fill_i, not_fill_i)] -= matrix[$(i, i)];
+        }
+    }
+}
+
+void fill_additional_row_cn(lapack_complex_double *row) {
+    int i;
+    for (i = 0; i < 3; ++i) {
+        row[$(i, i)] = lapack_make_complex_double(1, 0);
+        row[$$(i, i)] = lapack_make_complex_double(1, 0);
+    }
+
+}
+
 
 int main(void) {
     int i;
@@ -428,6 +455,22 @@ int main(void) {
     K = create_matrix(3, 3);
     M = create_matrix(3, 3);
     N = create_matrix(3, 3);
+/*
+    int not_fill_index_a,
+        not_fill_index_b,
+        not_fill_index_c,
+        not_fill_index_k,
+        not_fill_index_m,
+        not_fill_index_n;
+*/
+/*
+    fill_matrix_except_one_element(A, &not_fill_index_a);
+    fill_matrix_except_one_element(B, &not_fill_index_b);
+    fill_matrix_except_one_element(C, &not_fill_index_c);
+    fill_matrix_except_one_element(K, &not_fill_index_k);
+    fill_matrix_except_one_element(M, &not_fill_index_m);
+    fill_matrix_except_one_element(N, &not_fill_index_n);
+*/
 
     fill_matrix(A);
     fill_matrix(B);
@@ -436,6 +479,13 @@ int main(void) {
     fill_matrix(M);
     fill_matrix(N);
 
+/*    compute_unknown_element(-1, A, not_fill_index_a);
+    compute_unknown_element(-1, B, not_fill_index_b);
+    compute_unknown_element(-2, C, not_fill_index_c);
+    compute_unknown_element(-1, K, not_fill_index_k);
+    compute_unknown_element(-1, M, not_fill_index_m);
+    compute_unknown_element(-1, N, not_fill_index_n);
+*/
     MAIN_MATRIX = (lapack_complex_double *)calloc(SHORTED_N_EQUATIONS * 18, sizeof(lapack_complex_double));
     MAIN_VECTOR = (lapack_complex_double *)calloc(SHORTED_N_EQUATIONS, sizeof(lapack_complex_double));
 
@@ -458,6 +508,15 @@ int main(void) {
     double max_abs_a, max_abs_b, max_abs_c;
     double max_abs_k, max_abs_m, max_abs_n;
 
+//    lapack_complex_double additional_rhs_values[3][2];
+/*
+    additional_rhs_values[0][0] = lapack_make_complex_double(-2, 0);
+    additional_rhs_values[0][1] = lapack_make_complex_double(-1, 0);
+    additional_rhs_values[1][0] = lapack_make_complex_double(-1, 0);
+    additional_rhs_values[1][1] = lapack_make_complex_double(-1, 0);
+    additional_rhs_values[2][0] = lapack_make_complex_double(-1, 0);
+    additional_rhs_values[2][1] = lapack_make_complex_double(-1, 0);
+*/
     lapack_complex_double *matrix1, *matrix2, *matrix3, *matrix4;
 
     // MAIN LOOP START
@@ -500,30 +559,6 @@ int main(void) {
         if (matrix_index == 0) {
             fill_matrix_new(C, &MAIN_VECTOR[0]);
             fill_matrix_new(N, &MAIN_VECTOR[9]);
-
-            if (iterate == 0) {
-
-                max_abs_a = get_max_abs_of_matrix(A);
-                max_abs_b = get_max_abs_of_matrix(B);
-                max_abs_c = get_max_abs_of_matrix(C);
-
-                double k = pow(max_abs_a * max_abs_b * max_abs_c, 1 / 3.);
-
-                scalar_mult(A, k / max_abs_a);
-                scalar_mult(B, k / max_abs_b);
-                scalar_mult(C, k / max_abs_c);
-
-                max_abs_k = get_max_abs_of_matrix(K);
-                max_abs_m = get_max_abs_of_matrix(M);
-                max_abs_n = get_max_abs_of_matrix(N);
-
-                k = pow(max_abs_k * max_abs_m * max_abs_n, 1 / 3.);
-
-                scalar_mult(K, k / max_abs_k);
-                scalar_mult(M, k / max_abs_m);
-                scalar_mult(N, k / max_abs_n);
-            }
-
         } else if (matrix_index == 1) {
             fill_matrix_new(A, &MAIN_VECTOR[0]);
             fill_matrix_new(K, &MAIN_VECTOR[9]);
@@ -531,6 +566,26 @@ int main(void) {
             fill_matrix_new(B, &MAIN_VECTOR[0]);
             fill_matrix_new(M, &MAIN_VECTOR[9]);
         }
+
+        max_abs_a = get_max_abs_of_matrix(A);
+        max_abs_b = get_max_abs_of_matrix(B);
+        max_abs_c = get_max_abs_of_matrix(C);
+
+        double k = pow(max_abs_a * max_abs_b * max_abs_c, 1 / 3.);
+
+        scalar_mult(A, k / max_abs_a);
+        scalar_mult(B, k / max_abs_b);
+        scalar_mult(C, k / max_abs_c);
+
+        max_abs_k = get_max_abs_of_matrix(K);
+        max_abs_m = get_max_abs_of_matrix(M);
+        max_abs_n = get_max_abs_of_matrix(N);
+
+        k = pow(max_abs_k * max_abs_m * max_abs_n, 1 / 3.);
+
+        scalar_mult(K, k / max_abs_k);
+        scalar_mult(M, k / max_abs_m);
+        scalar_mult(N, k / max_abs_n);
 
         prev_residual = cur_residual;
         cur_residual = compute_residual(MAIN_VECTOR);
