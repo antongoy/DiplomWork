@@ -1,51 +1,7 @@
 #include "ranlib/ranlib.h"
+#include "utils.h"
 
-#include <lapacke.h>
-#include <lapacke_utils.h>
-
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#include <complex.h>
-#include <time.h>
-
-#define $(i, j) ((i) * 3 + (j))
-#define $$(i, j) ((i) * 3 + (j) + 9)
-
-#define N_EQUATIONS 243
-#define SHORTED_N_EQUATIONS 122
 #define N_VARS 18
-
-inline lapack_complex_double * create_matrix(size_t w, size_t l) {
-    return (lapack_complex_double *)calloc(w * l, sizeof(lapack_complex_double));
-}
-
-
-void fill_matrix(lapack_complex_double *matrix) {
-    int i, j;
-
-    for (i = 0; i < 3; ++i) {
-        for (j = 0; j < 3; ++j)  {
-            int c = rand() % 5 + 1;
-            double a = (2.0 *ranf() - 1.0) * c;
-            double b = (2.0 *ranf() - 1.0) * c;
-            matrix[$(i, j)] = lapack_make_complex_double(a, b);
-            //matrix[$(i, j)] = lapack_make_complex_double(1, 1);
-        }
-    }
-}
-
-inline void  print_matrix(lapack_complex_double *matrix, int w, int l) {
-    int i, j;
-
-    for (i = 0; i < w; ++i) {
-        for (j = 0; j < l; ++j) {
-            printf("(%.3g, %.3g)  ", lapack_complex_double_real(matrix[i * l + j]),
-                                     lapack_complex_double_imag(matrix[i * l + j]));
-        }
-        printf("\n");
-    }
-}
 
 
 inline int map_index_x(int i) {
@@ -83,7 +39,6 @@ inline int map_index_z2(int i) {
 }
 
 
-
 void fill_row_cn(lapack_complex_double *row,
                  lapack_complex_double *A,
                  lapack_complex_double *B,
@@ -91,8 +46,7 @@ void fill_row_cn(lapack_complex_double *row,
                  lapack_complex_double *M,
                  int i, int j, int k, int l, int r, int s) {
 
-    int row_size = ((3 * 3) * 2);
-    memset(row, 0, sizeof(lapack_complex_double) * row_size);
+    memset(row, 0, sizeof(lapack_complex_double) * N_VARS);
 
     int rcx, scx, icx, jcx, kcx, lcx;
 
@@ -140,14 +94,13 @@ void fill_row_cn(lapack_complex_double *row,
 
 
 void fill_row_bm(lapack_complex_double *row,
-        lapack_complex_double *A,
-        lapack_complex_double *C,
-        lapack_complex_double *K,
-        lapack_complex_double *N,
-        int i, int j, int k, int l, int r, int s) {
+                 lapack_complex_double *A,
+                 lapack_complex_double *C,
+                 lapack_complex_double *K,
+                 lapack_complex_double *N,
+                 int i, int j, int k, int l, int r, int s) {
 
-    int row_size = ((3 * 3) * 2);
-    memset(row, 0, sizeof(lapack_complex_double) * row_size);
+    memset(row, 0, sizeof(lapack_complex_double) * N_VARS);
 
     int rbx, sbx, ibx, jbx, kbx, lbx;
 
@@ -195,14 +148,13 @@ void fill_row_bm(lapack_complex_double *row,
 
 
 void fill_row_ak(lapack_complex_double *row,
-        lapack_complex_double *B,
-        lapack_complex_double *C,
-        lapack_complex_double *M,
-        lapack_complex_double *N,
-        int i, int j, int k, int l, int r, int s) {
+                 lapack_complex_double *B,
+                 lapack_complex_double *C,
+                 lapack_complex_double *M,
+                 lapack_complex_double *N,
+                 int i, int j, int k, int l, int r, int s) {
 
-    int row_size = ((3 * 3) * 2);
-    memset(row, 0, sizeof(lapack_complex_double) * row_size);
+    memset(row, 0, sizeof(lapack_complex_double) * N_VARS);
 
     int rax, sax, iax, jax, kax, lax;
 
@@ -248,91 +200,54 @@ void fill_row_ak(lapack_complex_double *row,
     row[$$(ikz, jkz)] += M[$(kkz, lkz)] * N[$(rkz, skz)];
 }
 
-void read_sets(int **sets) {
-    int i;
-    FILE *f;
 
-    if((f = fopen("filter_sets.txt", "r")) < 0) {
-        perror("File reading error:");
-        exit(1);
-    }
+void print_all(lapack_complex_double *A,
+               lapack_complex_double *B,
+               lapack_complex_double *C,
+               lapack_complex_double *Q,
+               lapack_complex_double *O,
+               lapack_complex_double *P,
+               double residual) {
+    printf("\n\n################# NEW ITERATION #################\n");
 
-    for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
-        fscanf(f, "%d %d %d %d %d %d", &sets[i][0], &sets[i][1], &sets[i][2], &sets[i][3], &sets[i][4], &sets[i][5]);
-    }
+    printf("------- MATRIX A -------\n");
+    print_matrix(A, 3, 3);
+    printf("\n------- MATRIX B -------\n");
+    print_matrix(B, 3, 3);
+    printf("\n------- MATRIX C -------\n");
+    print_matrix(C, 3, 3);
+    printf("\n------- MATRIX K -------\n");
+    print_matrix(Q, 3, 3);
+    printf("\n------- MATRIX M -------\n");
+    print_matrix(O, 3, 3);
+    printf("\n------- MATRIX N -------\n");
+    print_matrix(P, 3, 3);
 
-    for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
-        sets[i][0]--;
-        sets[i][1]--;
-        sets[i][2]--;
-        sets[i][3]--;
-        sets[i][4]--;
-        sets[i][5]--;
-    }
-
-    fclose(f);
-}
-
-void free_matrix(lapack_complex_double *matrix) {
-    free(matrix);
-}
-
-
-void free_sets(int **sets) {
-    int i;
-
-    for(i = 0; i < SHORTED_N_EQUATIONS; i++) {
-        free(sets[i]);
-    }
-
-    free(sets);
-}
-
-lapack_complex_double create_lhs_vector(int i, int j, int k, int l, int r, int s) {
-    if (j == k && l == r && s == i) {
-        if (i == j && k == l && r == s) {
-            return lapack_make_complex_double(0, 0);
-        } else {
-            return lapack_make_complex_double(1.0 / 3.0, 0);
-        }
-    } else {
-        if (i == j && k == l && r == s) {
-            return lapack_make_complex_double(- 1.0 / 3.0, 0);
-        } else {
-            return lapack_make_complex_double(0, 0);
-        }
-    }
-}
-
-double compute_residual(lapack_complex_double *main_vector) {
-    double residual = 0.0;
-    int i;
-    for (i = N_VARS; i < SHORTED_N_EQUATIONS; ++i) {
-        residual += pow(lapack_complex_float_real(main_vector[i]), 2) +
-                pow(lapack_complex_float_imag(main_vector[i]), 2);
-    }
-
-    return residual;
-}
-
-
-void fill_matrix_new(lapack_complex_double *dest, lapack_complex_double *src) {
-    memcpy(dest, src, sizeof(lapack_complex_double) * 9);
+    printf("RESIDUAL = %f\n", residual);
 }
 
 
 int main(void) {
     int i;
+    int iterate = 0;
+    int main_count = 2000;
 
+    double prev_residual = 0.0;
+    double cur_residual = 0.0;
+
+    lapack_complex_double *matrix1, *matrix2, *matrix3, *matrix4;
     lapack_complex_double *A, *B, *C, *K, *M, *N;
     lapack_complex_double *MAIN_MATRIX, *MAIN_VECTOR;
-    int **sets = (int **)calloc(SHORTED_N_EQUATIONS, sizeof(int *));
 
-    for(i = 0; i < SHORTED_N_EQUATIONS; i++) {
-        sets[i] = (int *)calloc(6, sizeof(int));
-    }
+    void (*generate_func[3])(lapack_complex_double *,
+                             lapack_complex_double *,
+                             lapack_complex_double *,
+                             lapack_complex_double *,
+                             lapack_complex_double *,
+                             int, int, int, int, int, int);
 
-    read_sets(sets);
+    int **sets = read_sets();
+
     srand(time(0));
     setall(time(0), time(0));
 
@@ -343,33 +258,19 @@ int main(void) {
     M = create_matrix(3, 3);
     N = create_matrix(3, 3);
 
-    fill_matrix(A);
-    fill_matrix(B);
-    fill_matrix(C);
-    fill_matrix(K);
-    fill_matrix(M);
-    fill_matrix(N);
+    fill_matrix(A, 5);
+    fill_matrix(B, 5);
+    fill_matrix(C, 5);
+    fill_matrix(K, 5);
+    fill_matrix(M, 5);
+    fill_matrix(N, 5);
 
-    MAIN_MATRIX = (lapack_complex_double *)calloc(SHORTED_N_EQUATIONS * 18, sizeof(lapack_complex_double));
-    MAIN_VECTOR = (lapack_complex_double *)calloc(SHORTED_N_EQUATIONS, sizeof(lapack_complex_double));
-
-    void (*generate_func[3])(lapack_complex_double *,
-                          lapack_complex_double *,
-                          lapack_complex_double *,
-                          lapack_complex_double *,
-                          lapack_complex_double *,
-                          int, int, int, int, int, int);
+    MAIN_MATRIX = (lapack_complex_double *)calloc(N_EQUATIONS * N_VARS, sizeof(lapack_complex_double));
+    MAIN_VECTOR = (lapack_complex_double *)calloc(N_EQUATIONS, sizeof(lapack_complex_double));
 
     generate_func[0] = fill_row_cn;
     generate_func[1] = fill_row_ak;
     generate_func[2] = fill_row_bm;
-
-    int iterate = 0;
-    int main_count = 20000;
-    double prev_residual = 0.0;
-    double cur_residual = 0.0;
-
-    lapack_complex_double *matrix1, *matrix2, *matrix3, *matrix4;
 
     do {
         int matrix_index = iterate % 3;
@@ -391,18 +292,18 @@ int main(void) {
             matrix4 = N;
         }
 
-        for (i = 0; i < SHORTED_N_EQUATIONS; ++i) {
-            generate_func[matrix_index](&MAIN_MATRIX[i * 18], matrix1, matrix2, matrix3, matrix4,
-                    sets[i][0], sets[i][1], sets[i][2],
-                    sets[i][3], sets[i][4], sets[i][5]);
-            MAIN_VECTOR[i] = create_lhs_vector(sets[i][0], sets[i][1], sets[i][2],
-                    sets[i][3], sets[i][4], sets[i][5]);
+        for (i = 0; i < N_EQUATIONS; ++i) {
+            generate_func[matrix_index](&MAIN_MATRIX[i * N_VARS], matrix1, matrix2, matrix3, matrix4,
+                                        sets[i][0], sets[i][1], sets[i][2],
+                                        sets[i][3], sets[i][4], sets[i][5]);
+            MAIN_VECTOR[i] = create_lhs_vector(sets[i]);
         }
 
         int info;
-        info = LAPACKE_zgels(LAPACK_ROW_MAJOR, 'N', SHORTED_N_EQUATIONS, N_VARS, 1, MAIN_MATRIX, N_VARS, MAIN_VECTOR, 1);
+        info = LAPACKE_zgels(LAPACK_ROW_MAJOR, 'N', N_EQUATIONS, N_VARS, 1, MAIN_MATRIX, N_VARS, MAIN_VECTOR, 1);
 
         if (info > 0) {
+            print_all(A, B, C, K, M, N, cur_residual);
             perror("The solution could not be computed (the matrix have not the full rank)");
             exit(1);
         }
@@ -418,51 +319,32 @@ int main(void) {
             fill_matrix_new(M, &MAIN_VECTOR[9]);
         }
 
+        normalization(A, B, C);
+        normalization(K, M, N);
+
         prev_residual = cur_residual;
-        cur_residual = compute_residual(MAIN_VECTOR);
+        cur_residual = compute_residual(MAIN_VECTOR, N_VARS);
 
         iterate++;
 
         if (fabs(cur_residual - prev_residual) < 0.00000005) {
             iterate = 0;
 
-            fill_matrix(A);
-            fill_matrix(B);
-            fill_matrix(K);
-            fill_matrix(M);
+            print_all(A, B, C, K, M, N, cur_residual);
 
-            printf("\n\n################# NEW ITERATION #################\n");
+            fill_matrix(A, 20);
+            fill_matrix(B, 20);
+            fill_matrix(C, 20);
+            fill_matrix(K, 20);
+            fill_matrix(M, 20);
+            fill_matrix(N, 20);
 
-            print_matrix(A, 3, 3);
-            printf("\n");
-            print_matrix(B, 3, 3);
-            printf("\n");
-            print_matrix(C, 3, 3);
-            printf("\n");
-            print_matrix(K, 3, 3);
-            printf("\n");
-            print_matrix(M, 3, 3);
-            printf("\n");
-            print_matrix(N, 3, 3);
-
-            printf("RESIDUAL = %f\n", cur_residual);
             prev_residual = cur_residual = 0.0;
             main_count--;
         }
     } while (main_count != 0);
 
-    print_matrix(A, 3, 3);
-    printf("\n");
-    print_matrix(B, 3, 3);
-    printf("\n");
-    print_matrix(C, 3, 3);
-    printf("\n");
-    print_matrix(K, 3, 3);
-    printf("\n");
-    print_matrix(M, 3, 3);
-    printf("\n");
-    print_matrix(N, 3, 3);
-
+    print_all(A, B, C, K, M, N, cur_residual);
 
     free_matrix(A);
     free_matrix(B);
@@ -471,6 +353,7 @@ int main(void) {
     free_matrix(M);
     free_matrix(N);
     free_matrix(MAIN_MATRIX);
+    free_matrix(MAIN_VECTOR);
     free_sets(sets);
 
     return 0;
